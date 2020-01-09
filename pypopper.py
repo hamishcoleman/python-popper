@@ -87,12 +87,29 @@ class Message():
 
 class POPConnection():
     def __init__(self, connection, messages):
-        self.conn = connection
+        self.conn = ChatterboxConnection(connection)
         self.messages = messages
 
     def send_banner(self):
         """Send welcome banner"""
         self.conn.sendall("+OK pypopper file-based pop3 server ready")
+
+    def process_connection(self):
+        """
+        Process the entire client connection.
+        Using a blocking single-thread system
+        """
+        self.send_banner()
+
+        connected = True
+        while connected:
+            data = self.conn.recvall()
+            if data is None:
+                return
+            if not data:
+                continue
+
+            connected = self.process_line(data)
 
     def process_line(self, line):
         """Process a command line from the client"""
@@ -236,18 +253,8 @@ def serve(host, port, messages):
             conn, addr = sock.accept()
             LOG.debug('Connected by %s', addr)
             try:
-                conn = ChatterboxConnection(conn)
                 pop = POPConnection(conn, messages)
-                pop.send_banner()
-                connected = True
-                while connected:
-                    data = conn.recvall()
-                    if data is None:
-                        break
-                    if not data:
-                        continue
-
-                    connected = pop.process_line(data)
+                pop.process_connection()
             finally:
                 conn.close()
     except (SystemExit, KeyboardInterrupt):
