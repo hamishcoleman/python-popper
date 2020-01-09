@@ -170,12 +170,14 @@ class POPConnection():
         """Generate a success response"""
         self.send_msg("+OK", *args)
 
-    def _param1unused(self, param):
+    @staticmethod
+    def _param1unused(param):
         """Ensure that we dont have an unknown value"""
         if param is not None:
             raise ValueError("bad args", param)
 
-    def _param1used(self, param):
+    @staticmethod
+    def _param1used(param):
         """Ensure that the parameter is set to something"""
         if param is None:
             raise ValueError("missing args")
@@ -234,7 +236,8 @@ class POPConnection():
             handler = self.handle_unknown
         return handler
 
-    def handle_unknown(self, unused1):
+    @staticmethod
+    def handle_unknown(unused1):
         raise ValueError("unknown command")
 
     def handle_user(self, unused1):
