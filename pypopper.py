@@ -94,6 +94,27 @@ class POPConnection():
         """Send welcome banner"""
         self.conn.sendall("+OK pypopper file-based pop3 server ready")
 
+    def process_line(self, line):
+        """Process a command line from the client"""
+        words = line.split(maxsplit=1)
+        command = words.pop(0)
+        if words:
+            param = words[0]
+        else:
+            param = None
+
+        handler = self.get_handler(command)
+        if handler is not None:
+            result = handler(param, self.messages)
+            if result is None:
+                return None
+            try:
+                self.conn.sendall(result)
+            except Exception:
+                # socket might go away during sendall
+                return None
+        return True
+
     def get_handler(self, command):
         """Return the handler function for a given command name"""
         handlername = 'handle_' + command.lower()
@@ -194,8 +215,9 @@ class POPConnection():
         return "+OK"
 
     def handle_quit(self, unused1, unused2):
+        self.conn.sendall("+OK pypopper POP3 server signing off")
         self.conn.close()
-        return "+OK pypopper POP3 server signing off"
+        return None
 
 
 def serve(host, port, messages):
@@ -217,28 +239,15 @@ def serve(host, port, messages):
                 conn = ChatterboxConnection(conn)
                 pop = POPConnection(conn, messages)
                 pop.send_banner()
-                while True:
+                connected = True
+                while connected:
                     data = conn.recvall()
                     if data is None:
                         break
                     if not data:
                         continue
 
-                    words = data.split(None, 1)
-                    command = words[0]
-                    if len(words) > 1:
-                        param = words[1]
-                    else:
-                        param = None
-
-                    handler = pop.get_handler(command)
-                    if handler is not None:
-                        result = handler(param, messages)
-                        try:
-                            conn.sendall(result)
-                        except Exception:
-                            # socket might go away during sendall
-                            break
+                    connected = pop.process_line(data)
             finally:
                 conn.close()
     except (SystemExit, KeyboardInterrupt):
