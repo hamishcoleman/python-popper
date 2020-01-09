@@ -45,6 +45,7 @@ class ChatterboxConnection():
                 break
             if end in chunk:
                 data.append(chunk[:chunk.index(end)])
+                # FIXME: we are throwing away the rest of the chunk here
                 break
             data.append(chunk)
             if len(data) > 1:
