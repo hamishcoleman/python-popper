@@ -115,6 +115,35 @@ class Message():
         return self._data
 
 
+class MessageList():
+    """Contains a refreshable array of Message objects"""
+    def __init__(self, sources):
+        self._source = sources
+        self._array = None
+
+    def __getitem__(self, i):
+        if self._array is None:
+            self.refresh()
+        return self._array[i]
+
+    def __len__(self):
+        if self._array is None:
+            self.refresh()
+        return len(self._array)
+
+    def refresh(self):
+        """Clear the message array list and repopulate the message objects"""
+        self._array = []
+
+        for filename in self._source:
+            # TODO:
+            # - if filename is a directory, itterate the contents?
+            if os.path.exists(filename):
+                self._array.append(Message(filename))
+            else:
+                print("File not found:", filename)
+
+
 class POPConnection():
     def __init__(self, connection, messages):
         self.conn = ChatterboxConnection(connection)
@@ -332,6 +361,9 @@ def serve(host, port, messages):
             conn, addr = sock.accept()
             LOG.debug('Connected by %s', addr)
             try:
+                # TODO
+                # - if we expect the messages source to be changing,
+                #   we should messages.refresh() here
                 pop = POPConnection(conn, messages)
                 pop.process_connection()
             finally:
@@ -350,8 +382,11 @@ if __name__ == "__main__":
         print(__doc__)
         sys.exit(0)
 
+    # pop the argv0
+    sys.argv.pop(0)
+
     HOST = ""
-    PORT = sys.argv.pop(1)
+    PORT = sys.argv.pop(0)
     if ":" in PORT:
         HOST = PORT[:PORT.index(":")]
         PORT = PORT[PORT.index(":") + 1:]
@@ -362,13 +397,5 @@ if __name__ == "__main__":
         print("Unknown port:", PORT)
         sys.exit(1)
 
-    MESSAGES = []
-    while len(sys.argv) > 1:
-        FILENAME = sys.argv.pop(1)
-        if not os.path.exists(FILENAME):
-            print("File not found:", FILENAME)
-            break
-
-        MESSAGES.append(Message(FILENAME))
-
+    MESSAGES = MessageList(sys.argv)
     serve(HOST, PORT, MESSAGES)
