@@ -176,6 +176,16 @@ class POPConnection():
         self.send_ok("pass accepted")
         return True
 
+    def handle_capa(self, unused1):
+        self.send_ok("\r\n".join((
+            "Capability list follows",
+            "TOP",
+            "USER",
+            "UIDL",
+            ".",
+        )))
+        return True
+
     def handle_stat(self, unused1):
         size = 0
         for msg in self.messages:
