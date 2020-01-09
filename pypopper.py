@@ -344,7 +344,7 @@ def serve(host, port, messages):
     if host:
         hostname = host
     else:
-        hostname = "localhost"
+        hostname = "*"
 
     LOG.info("serving POP3 on %s:%s", hostname, port)
 
