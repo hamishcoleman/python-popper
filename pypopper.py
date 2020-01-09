@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """pypopper: a file-based pop3 server
 
 Usage:
@@ -28,13 +28,13 @@ class ChatterboxConnection(object):
             log.debug("send: %r", data)
         else:
             log.debug("send: %r...", data[:50])
-        data += END
+        data = bytes(data + END, 'utf-8')
         self.conn.sendall(data)
 
     def recvall(self, END=END):
         data = []
         while True:
-            chunk = self.conn.recv(4096)
+            chunk = self.conn.recv(4096).decode('utf-8')
             if not chunk:
                 break
             if END in chunk:
