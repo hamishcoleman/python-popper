@@ -179,6 +179,7 @@ class POPConnection():
         return "+OK"
 
     def handle_quit(self, unused1, unused2):
+        self.conn.close()
         return "+OK pypopper POP3 server signing off"
 
 
@@ -222,9 +223,6 @@ def serve(host, port, messages):
                             conn.sendall(result)
                         except Exception:
                             # socket might go away during sendall
-                            break
-
-                        if handler is POPConnection.handle_quit:
                             break
             finally:
                 conn.close()
