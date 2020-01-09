@@ -66,6 +66,7 @@ class ChatterboxConnection():
 class Message():
     def __init__(self, messagefile):
         msg = open(messagefile, "r")
+        self.filename = messagefile
         try:
             self.data = data = msg.read()
             self.size = len(data)
@@ -73,6 +74,8 @@ class Message():
             self.body = bot.split("\n")
         finally:
             msg.close()
+
+        self.uid = os.path.basename(self.filename)
 
     def top(self, lines):
         """Return the specified number of body lines from our message"""
@@ -220,14 +223,19 @@ class POPConnection():
 
     def handle_uidl(self, data):
         if data:
-            self.send_err("unhandled", data)
+            try:
+                msg, msgno = self._param2message(data)
+            except ValueError:
+                return True
+
+            self.send_ok(msgno, msg.uid)
             return True
 
         s = []
         s.append("unique-id listing follows\r\n")
         msgno = 1
-        for _ in self.messages:
-            s.append("%i %i\r\n" % (msgno, msgno))
+        for msg in self.messages:
+            s.append("%i %s\r\n" % (msgno, msg.uid))
             msgno += 1
 
         s.append('.')
