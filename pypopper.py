@@ -10,12 +10,12 @@ import socket
 import sys
 
 logging.basicConfig(format="%(name)s %(levelname)s - %(message)s")
-log = logging.getLogger("pypopper")
-log.setLevel(logging.DEBUG)
+LOG = logging.getLogger("pypopper")
+LOG.setLevel(logging.DEBUG)
 
 
-class ChatterboxConnection(object):
-    END = "\r\n"
+class ChatterboxConnection():
+    end = "\r\n"
 
     def __init__(self, conn):
         self.conn = conn
@@ -23,37 +23,37 @@ class ChatterboxConnection(object):
     def __getattr__(self, name):
         return getattr(self.conn, name)
 
-    def sendall(self, data, END=END):
+    def sendall(self, data, end=end):
         if len(data) < 50:
-            log.debug("send: %r", data)
+            LOG.debug("send: %r", data)
         else:
-            log.debug("send: %r...", data[:50])
-        data = bytes(data + END, 'utf-8')
+            LOG.debug("send: %r...", data[:50])
+        data = bytes(data + end, 'utf-8')
         self.conn.sendall(data)
 
-    def recvall(self, END=END):
+    def recvall(self, end=end):
         data = []
         while True:
             chunk = self.conn.recv(4096).decode('utf-8')
             if not chunk:
                 break
-            if END in chunk:
-                data.append(chunk[:chunk.index(END)])
+            if end in chunk:
+                data.append(chunk[:chunk.index(end)])
                 break
             data.append(chunk)
             if len(data) > 1:
                 pair = data[-2] + data[-1]
-                if END in pair:
-                    data[-2] = pair[:pair.index(END)]
+                if end in pair:
+                    data[-2] = pair[:pair.index(end)]
                     data.pop()
                     break
-        log.debug("recv: %r", "".join(data))
+        LOG.debug("recv: %r", "".join(data))
         return "".join(data)
 
 
-class Message(object):
-    def __init__(self, filename):
-        msg = open(filename, "r")
+class Message():
+    def __init__(self, messagefile):
+        msg = open(messagefile, "r")
         try:
             self.data = data = msg.read()
             self.size = len(data)
@@ -63,52 +63,56 @@ class Message(object):
             msg.close()
 
 
-def handleUser(unused1, unused2):
+def handle_user(unused1, unused2):
     return "+OK user accepted"
 
 
-def handlePass(unused1, unused2):
+def handle_pass(unused1, unused2):
     return "+OK pass accepted"
 
 
-def handleStat(unused1, messages):
+def handle_stat(unused1, messagelist):
     size = 0
-    for msg in messages:
+    for msg in messagelist:
         size += msg.size
-    return "+OK %i %i" % (len(messages), size)
+    return "+OK %i %i" % (len(messagelist), size)
 
 
-def handleList(data, messages):
+def handle_list(data, messagelist):
     if data:
         try:
             msgno = int(data)
-            msg = messages[msgno-1]
-            return "+OK %i %i" % (msgno, msg.size)
-        except Exception:
-            return "-ERR bad data %s" % data
+        except ValueError:
+            return "-ERR bad number %s" % data
+        try:
+            msg = messagelist[msgno-1]
+        except IndexError:
+            return "-ERR bad message number %i" % msgno
+
+        return "+OK %i %i" % (msgno, msg.size)
 
     size = 0
     s = []
     msgno = 1
-    for msg in messages:
+    for msg in messagelist:
         s.append("%i %i\r\n" % (msgno, msg.size))
         size += msg.size
         msgno += 1
 
-    s.insert(0, "+OK %i messages (%i octets)\r\n" % (len(messages), size))
+    s.insert(0, "+OK %i messages (%i octets)\r\n" % (len(messagelist), size))
     s.append('.')
 
     return ''.join(s)
 
 
-def handleUidl(data, messages):
+def handle_uidl(data, messagelist):
     if data:
         return "-ERR unhandled %s" % data
 
     s = []
     s.append("+OK unique-id listing follows\r\n")
     msgno = 1
-    for msg in messages:
+    for msg in messagelist:
         s.append("%i %i\r\n" % (msgno, msgno))
         msgno += 1
 
@@ -117,51 +121,59 @@ def handleUidl(data, messages):
     return ''.join(s)
 
 
-def handleTop(data, messages):
+def handle_top(data, messagelist):
     num, lines = data.split()
     try:
         num = int(num)
         lines = int(lines)
-        msg = messages[num-1]
-        text = msg.top + "\r\n\r\n" + "\r\n".join(msg.bot[:lines])
-        return "+OK top of message follows\r\n%s\r\n." % text
-    except Exception:
-        return "-ERR bad data %s" % data
+    except ValueError:
+        return "-ERR bad number %s" % data
+    try:
+        msg = messagelist[num-1]
+    except IndexError:
+        return "-ERR bad message number %i" % num
+
+    text = msg.top + "\r\n\r\n" + "\r\n".join(msg.bot[:lines])
+    return "+OK top of message follows\r\n%s\r\n." % text
 
 
-def handleRetr(data, messages):
+def handle_retr(data, messagelist):
     try:
         msgno = int(data)
-        msg = messages[msgno-1]
-        return "+OK %i octets\r\n%s\r\n." % (msg.size, msg.data)
-        log.info("message %i sent", msgno)
-    except Exception:
-        return "-ERR bad msgno %s" % data
+    except ValueError:
+        return "-ERR bad number %s" % data
+    try:
+        msg = messagelist[msgno-1]
+    except IndexError:
+        return "-ERR bad message number %i" % msgno
+
+    LOG.info("message %i sent", msgno)
+    return "+OK %i octets\r\n%s\r\n." % (msg.size, msg.data)
 
 
-def handleDele(unused1, unused2):
+def handle_dele(unused1, unused2):
     return "+OK message 1 deleted"
 
 
-def handleNoop(unused1, unused2):
+def handle_noop(unused1, unused2):
     return "+OK"
 
 
-def handleQuit(unused1, unused2):
+def handle_quit(unused1, unused2):
     return "+OK pypopper POP3 server signing off"
 
 
-dispatch = dict(
-    USER=handleUser,
-    PASS=handlePass,
-    STAT=handleStat,
-    LIST=handleList,
-    UIDL=handleUidl,
-    TOP=handleTop,
-    RETR=handleRetr,
-    DELE=handleDele,
-    NOOP=handleNoop,
-    QUIT=handleQuit,
+DISPATCH = dict(
+    USER=handle_user,
+    PASS=handle_pass,
+    STAT=handle_stat,
+    LIST=handle_list,
+    UIDL=handle_uidl,
+    TOP=handle_top,
+    RETR=handle_retr,
+    DELE=handle_dele,
+    NOOP=handle_noop,
+    QUIT=handle_quit,
 )
 
 
@@ -173,11 +185,11 @@ def serve(host, port, messages):
             hostname = host
         else:
             hostname = "localhost"
-        log.info("serving POP3 on %s:%s", hostname, port)
+        LOG.info("serving POP3 on %s:%s", hostname, port)
         while True:
             sock.listen(1)
             conn, addr = sock.accept()
-            log.debug('Connected by %s', addr)
+            LOG.debug('Connected by %s', addr)
             try:
                 conn = ChatterboxConnection(conn)
                 conn.sendall("+OK pypopper file-based pop3 server ready")
@@ -186,15 +198,15 @@ def serve(host, port, messages):
                     if not data:
                         break
 
-                    list = data.split(None, 1)
-                    command = list[0]
-                    if len(list) > 1:
-                        param = list[1]
+                    words = data.split(None, 1)
+                    command = words[0]
+                    if len(words) > 1:
+                        param = words[1]
                     else:
                         param = None
 
                     try:
-                        cmd = dispatch[command]
+                        cmd = DISPATCH[command]
                     except KeyError:
                         conn.sendall("-ERR unknown command")
                     else:
@@ -205,14 +217,14 @@ def serve(host, port, messages):
                             # socket might go away during sendall
                             break
 
-                        if cmd is handleQuit:
+                        if cmd is handle_quit:
                             break
             finally:
                 conn.close()
     except (SystemExit, KeyboardInterrupt):
-        log.info("pypopper stopped")
+        LOG.info("pypopper stopped")
     except Exception as ex:
-        log.critical("fatal error", exc_info=ex)
+        LOG.critical("fatal error", exc_info=ex)
     finally:
         sock.shutdown(socket.SHUT_RDWR)
         sock.close()
@@ -223,25 +235,25 @@ if __name__ == "__main__":
         print(__doc__)
         sys.exit(0)
 
-    host = ""
-    port = sys.argv.pop(1)
-    if ":" in port:
-        host = port[:port.index(":")]
-        port = port[port.index(":") + 1:]
+    HOST = ""
+    PORT = sys.argv.pop(1)
+    if ":" in PORT:
+        HOST = PORT[:PORT.index(":")]
+        PORT = PORT[PORT.index(":") + 1:]
 
     try:
-        port = int(port)
+        PORT = int(PORT)
     except Exception:
-        print("Unknown port:", port)
+        print("Unknown port:", PORT)
         sys.exit(1)
 
-    messages = []
+    MESSAGES = []
     while len(sys.argv) > 1:
-        filename = sys.argv.pop(1)
-        if not os.path.exists(filename):
-            print("File not found:", filename)
+        FILENAME = sys.argv.pop(1)
+        if not os.path.exists(FILENAME):
+            print("File not found:", FILENAME)
             break
 
-        messages.append(Message(filename))
+        MESSAGES.append(Message(FILENAME))
 
-    serve(host, port, messages)
+    serve(HOST, PORT, MESSAGES)
