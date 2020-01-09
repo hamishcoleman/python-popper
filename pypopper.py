@@ -94,6 +94,22 @@ class POPConnection():
         """Send welcome banner"""
         self.conn.sendall("+OK pypopper file-based pop3 server ready")
 
+    def send_msg(self, *args):
+        """Send a generic response"""
+        strings = []
+        for arg in args:
+            strings.append(str(arg))
+        data = " ".join(strings)
+        self.conn.sendall(data)
+
+    def send_err(self, *args):
+        """Generate an error response"""
+        self.send_msg("-ERR", *args)
+
+    def send_ok(self, *args):
+        """Generate a success response"""
+        self.send_msg("+OK", *args)
+
     def process_connection(self):
         """
         Process the entire client connection.
@@ -121,16 +137,8 @@ class POPConnection():
             param = None
 
         handler = self.get_handler(command)
-        if handler is not None:
-            result = handler(param, self.messages)
-            if result is None:
-                return None
-            try:
-                self.conn.sendall(result)
-            except Exception:
-                # socket might go away during sendall
-                return None
-        return True
+        result = handler(param)
+        return result
 
     def get_handler(self, command):
         """Return the handler function for a given command name"""
@@ -140,101 +148,121 @@ class POPConnection():
             handler = self.handle_unknown
         return handler
 
-    def handle_unknown(self, unused1, unused2):
-        return "-ERR unknown command"
+    def handle_unknown(self, unused1):
+        self.send_err("unknown command")
+        return True
 
-    def handle_user(self, unused1, unused2):
-        return "+OK user accepted"
+    def handle_user(self, unused1):
+        self.send_ok("user accepted")
+        return True
 
-    def handle_pass(self, unused1, unused2):
-        return "+OK pass accepted"
+    def handle_pass(self, unused1):
+        self.send_ok("pass accepted")
+        return True
 
-    def handle_stat(self, unused1, messagelist):
+    def handle_stat(self, unused1):
         size = 0
-        for msg in messagelist:
+        for msg in self.messages:
             size += msg.size
-        return "+OK %i %i" % (len(messagelist), size)
+        self.send_ok(len(self.messages), size)
+        return True
 
-    def handle_list(self, data, messagelist):
+    def handle_list(self, data):
         if data:
             try:
                 msgno = int(data)
             except ValueError:
-                return "-ERR bad number %s" % data
+                self.send_err("bad number", data)
+                return True
             try:
-                msg = messagelist[msgno-1]
+                msg = self.messages[msgno-1]
             except IndexError:
-                return "-ERR bad message number %i" % msgno
+                self.send_err("bad message number", msgno)
+                return True
 
-            return "+OK %i %i" % (msgno, msg.size)
+            self.send_ok(msgno, msg.size)
+            return True
 
         size = 0
         s = []
         msgno = 1
-        for msg in messagelist:
+        for msg in self.messages:
             s.append("%i %i\r\n" % (msgno, msg.size))
             size += msg.size
             msgno += 1
 
         s.insert(
-            0, "+OK %i messages (%i octets)\r\n" % (len(messagelist), size))
+            0, "%i messages (%i octets)\r\n" % (len(self.messages), size))
         s.append('.')
 
-        return ''.join(s)
+        self.send_ok(''.join(s))
+        return True
 
-    def handle_uidl(self, data, messagelist):
+    def handle_uidl(self, data):
         if data:
-            return "-ERR unhandled %s" % data
+            self.send_err("unhandled", data)
+            return True
 
         s = []
-        s.append("+OK unique-id listing follows\r\n")
+        s.append("unique-id listing follows\r\n")
         msgno = 1
-        for msg in messagelist:
+        for msg in self.messages:
             s.append("%i %i\r\n" % (msgno, msgno))
             msgno += 1
 
         s.append('.')
 
-        return ''.join(s)
+        self.send_ok(''.join(s))
+        return True
 
-    def handle_top(self, data, messagelist):
+    def handle_top(self, data):
         num, lines = data.split()
         try:
             num = int(num)
             lines = int(lines)
         except ValueError:
-            return "-ERR bad number %s" % data
+            self.send_err("bad number", data)
+            return True
+
         try:
-            msg = messagelist[num-1]
+            msg = self.messages[num-1]
         except IndexError:
-            return "-ERR bad message number %i" % num
+            self.send_err("bad message number", num)
+            return True
 
-        return "+OK top of message follows\r\n%s\r\n." % msg.top(lines)
+        self.send_ok("top of message follows\r\n%s\r\n." % msg.top(lines))
+        return True
 
-    def handle_retr(self, data, messagelist):
+    def handle_retr(self, data):
         try:
             msgno = int(data)
         except ValueError:
-            return "-ERR bad number %s" % data
+            self.send_err("bad number", data)
+            return True
         try:
-            msg = messagelist[msgno-1]
+            msg = self.messages[msgno-1]
         except IndexError:
-            return "-ERR bad message number %i" % msgno
+            self.send_err("bad message number", msg)
+            return True
 
         data = msg.retr()
+        self.send_ok("%i octets\r\n%s\r\n." % (len(data), data))
+
         LOG.info("message %i sent", msgno)
-        return "+OK %i octets\r\n%s\r\n." % (len(data), data)
+        return True
 
-    def handle_dele(self, unused1, unused2):
-        return "+OK message 1 deleted"
+    def handle_dele(self, unused1):
+        self.send_ok("message 1 deleted")
+        return True
 
-    def handle_noop(self, unused1, unused2):
-        return "+OK"
+    def handle_noop(self, unused1):
+        self.send_ok()
+        return True
 
-    def handle_quit(self, unused1, unused2):
-        self.conn.sendall("+OK pypopper POP3 server signing off")
+    def handle_quit(self, unused1):
+        self.send_ok("pypopper POP3 server signing off")
         self.conn.close()
-        return None
+        return False
 
 
 def serve(host, port, messages):
