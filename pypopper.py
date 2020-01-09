@@ -272,19 +272,19 @@ class POPConnection():
             return
 
         size = 0
-        s = []
+        output = []
         msgno = 1
         for msg in self.messages:
             this_size = msg.size()
-            s.append("%i %i\r\n" % (msgno, this_size))
+            output.append("%i %i\r\n" % (msgno, this_size))
             size += this_size
             msgno += 1
 
-        s.insert(
+        output.insert(
             0, "%i messages (%i octets)\r\n" % (len(self.messages), size))
-        s.append('.')
+        output.append('.')
 
-        self.send_ok(''.join(s))
+        self.send_ok(''.join(output))
 
     def handle_uidl(self, data):
         if data:
@@ -292,16 +292,16 @@ class POPConnection():
             self.send_ok(msgno, msg.uid)
             return
 
-        s = []
-        s.append("unique-id listing follows\r\n")
+        output = []
+        output.append("unique-id listing follows\r\n")
         msgno = 1
         for msg in self.messages:
-            s.append("%i %s\r\n" % (msgno, msg.uid))
+            output.append("%i %s\r\n" % (msgno, msg.uid))
             msgno += 1
 
-        s.append('.')
+        output.append('.')
 
-        self.send_ok(''.join(s))
+        self.send_ok(''.join(output))
 
     def handle_top(self, param):
         self._param1used(param)
