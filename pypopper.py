@@ -204,7 +204,7 @@ def serve(host, port, messages):
                 while True:
                     data = conn.recvall()
                     if not data:
-                        break
+                        continue
 
                     words = data.split(None, 1)
                     command = words[0]
