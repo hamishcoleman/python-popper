@@ -7,7 +7,7 @@ all: check
 
 BUILDDEPS := flake8
 
-build-dep:
+build-deps:
 	apt-get -y install $(BUILDDEPS)
 
 check:
