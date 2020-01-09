@@ -178,7 +178,7 @@ class POPConnection():
     def _param1used(self, param):
         """Ensure that the parameter is set to something"""
         if param is None:
-            raise ValueError("missing args", param)
+            raise ValueError("missing args")
 
     def _param2message(self, param):
         """Extract a message number and convert it into a message object"""
@@ -300,8 +300,9 @@ class POPConnection():
 
         self.send_ok(''.join(s))
 
-    def handle_top(self, data):
-        num, lines = data.split()
+    def handle_top(self, param):
+        self._param1used(param)
+        num, lines = param.split()
         msg, _ = self._param2message(num)
 
         try:
@@ -314,8 +315,9 @@ class POPConnection():
 
         self.send_ok("top of message follows\r\n%s\r\n." % msg.top(lines))
 
-    def handle_retr(self, data):
-        msg, msgno = self._param2message(data)
+    def handle_retr(self, param):
+        self._param1used(param)
+        msg, msgno = self._param2message(param)
 
         data = msg.data()
         self.send_ok("%i octets\r\n%s\r\n." % (len(data), data))
@@ -323,6 +325,7 @@ class POPConnection():
         LOG.info("message %i sent", msgno)
 
     def handle_dele(self, param):
+        self._param1used(param)
         _, msgno = self._param2message(param)
         self.send_ok("message", msgno, "deleted (fake)")
 
