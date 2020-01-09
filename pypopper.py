@@ -174,14 +174,12 @@ class POPConnection():
         try:
             msgno = int(param)
         except ValueError:
-            self.send_err("bad number", param)
-            raise ValueError
+            raise ValueError("bad number", param)
 
         try:
             msg = self.messages[msgno-1]
         except IndexError:
-            self.send_err("bad message number", msgno)
-            raise ValueError
+            raise ValueError("bad message number", msgno)
 
         return (msg, msgno)
 
@@ -212,7 +210,12 @@ class POPConnection():
             param = None
 
         handler = self.get_handler(command)
-        result = handler(param)
+        try:
+            result = handler(param)
+        except ValueError as err:
+            self.send_err(err)
+            return True
+
         return result
 
     def get_handler(self, command):
@@ -254,11 +257,7 @@ class POPConnection():
 
     def handle_list(self, data):
         if data:
-            try:
-                msg, msgno = self._param2message(data)
-            except ValueError:
-                return True
-
+            msg, msgno = self._param2message(data)
             self.send_ok(msgno, msg.size())
             return True
 
@@ -280,11 +279,7 @@ class POPConnection():
 
     def handle_uidl(self, data):
         if data:
-            try:
-                msg, msgno = self._param2message(data)
-            except ValueError:
-                return True
-
+            msg, msgno = self._param2message(data)
             self.send_ok(msgno, msg.uid)
             return True
 
@@ -302,10 +297,7 @@ class POPConnection():
 
     def handle_top(self, data):
         num, lines = data.split()
-        try:
-            msg, _ = self._param2message(num)
-        except ValueError:
-            return True
+        msg, _ = self._param2message(num)
 
         try:
             lines = int(lines)
@@ -320,10 +312,7 @@ class POPConnection():
         return True
 
     def handle_retr(self, data):
-        try:
-            msg, msgno = self._param2message(data)
-        except ValueError:
-            return True
+        msg, msgno = self._param2message(data)
 
         data = msg.data()
         self.send_ok("%i octets\r\n%s\r\n." % (len(data), data))
@@ -331,8 +320,9 @@ class POPConnection():
         LOG.info("message %i sent", msgno)
         return True
 
-    def handle_dele(self, unused1):
-        self.send_ok("message 1 deleted")
+    def handle_dele(self, param):
+        _, msgno = self._param2message(param)
+        self.send_ok("message", msgno, "deleted (fake)")
         return True
 
     def handle_noop(self, unused1):
