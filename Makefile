@@ -12,7 +12,9 @@ build-deps:
 
 check:
 	flake8
+	pylint3 -E *.py
 
-# Not checked by default because there are still lots of violations
+# The full-strength pylint complains about a lot more items, so we
+# use the -E errors-only option above for CI tests
 pylint:
 	pylint3 *.py
