@@ -65,24 +65,21 @@ class ChatterboxConnection():
 
 class Message():
     def __init__(self, messagefile):
-        msg = open(messagefile, "r")
         self.filename = messagefile
-        try:
-            self.data = msg.read()
-        finally:
-            msg.close()
 
+        self._data = None
         self._lines = None
-        self.size = len(self.data)
         self.uid = os.path.basename(self.filename)
 
     def _head(self):
         """Return a slice with the message header"""
-        return self.data[:self.data.index("\n\n")]
+        data = self.data()
+        return data[:data.index("\n\n")]
 
     def _body(self):
         """Return a slice with the message body"""
-        return self.data[self.data.index("\n\n")+2:]
+        data = self.data()
+        return data[data.index("\n\n")+2:]
 
     def top(self, lines):
         """Return the specified number of body lines from our message"""
@@ -100,12 +97,22 @@ class Message():
 
         return result
 
-    def retr(self):
+    def size(self):
+        """Fetch the message size"""
+        if self._data is not None:
+            # If the file contents are loaded, use the cached data
+            return len(self._data)
+        return os.stat(self.filename).st_size
+
+    def data(self):
         """Return the entire message"""
+        if self._data is None:
+            msgf = open(self.filename, "r")
+            self._data = msgf.read()
 
         # Note that the data should not have a CRLF.CRLF 5 byte sequence,
         # but we cheat here.
-        return self.data
+        return self._data
 
 
 class POPConnection():
@@ -212,7 +219,7 @@ class POPConnection():
     def handle_stat(self, unused1):
         size = 0
         for msg in self.messages:
-            size += msg.size
+            size += msg.size()
         self.send_ok(len(self.messages), size)
         return True
 
@@ -223,15 +230,16 @@ class POPConnection():
             except ValueError:
                 return True
 
-            self.send_ok(msgno, msg.size)
+            self.send_ok(msgno, msg.size())
             return True
 
         size = 0
         s = []
         msgno = 1
         for msg in self.messages:
-            s.append("%i %i\r\n" % (msgno, msg.size))
-            size += msg.size
+            this_size = msg.size()
+            s.append("%i %i\r\n" % (msgno, this_size))
+            size += this_size
             msgno += 1
 
         s.insert(
@@ -288,7 +296,7 @@ class POPConnection():
         except ValueError:
             return True
 
-        data = msg.retr()
+        data = msg.data()
         self.send_ok("%i octets\r\n%s\r\n." % (len(data), data))
 
         LOG.info("message %i sent", msgno)
