@@ -68,23 +68,43 @@ class Message():
         msg = open(messagefile, "r")
         self.filename = messagefile
         try:
-            self.data = data = msg.read()
-            self.size = len(data)
-            self.head, bot = data.split("\n\n", 1)
-            self.body = bot.split("\n")
+            self.data = msg.read()
         finally:
             msg.close()
 
+        self._lines = None
+        self.size = len(self.data)
         self.uid = os.path.basename(self.filename)
+
+    def _head(self):
+        """Return a slice with the message header"""
+        return self.data[:self.data.index("\n\n")]
+
+    def _body(self):
+        """Return a slice with the message body"""
+        return self.data[self.data.index("\n\n")+2:]
 
     def top(self, lines):
         """Return the specified number of body lines from our message"""
-        return self.head + "\r\n\r\n" + "\r\n".join(self.body[:lines])
+
+        # Note that technically, the _head() should have CRLF line endings,
+        # but we cheat here.
+        result = self._head() + "\r\n\r\n"
+
+        if lines:
+            # Extract the data the first time it is needed
+            if self._lines is None:
+                self._lines = self._body().split("\n")
+
+            result += "\r\n".join(self._lines[:lines])
+
+        return result
 
     def retr(self):
         """Return the entire message"""
-        # could reconstruct this from self.head and self.body
-        # (allowing self.data to be deleted)
+
+        # Note that the data should not have a CRLF.CRLF 5 byte sequence,
+        # but we cheat here.
         return self.data
 
 
@@ -255,6 +275,9 @@ class POPConnection():
         except ValueError:
             self.send_err("bad number", lines)
             return True
+
+        # Note that with zero lines, we will end up with what looks like an
+        # extra blank line in the output.  This appears benign
 
         self.send_ok("top of message follows\r\n%s\r\n." % msg.top(lines))
         return True
