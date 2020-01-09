@@ -5,7 +5,9 @@
 all: check
 	false
 
-BUILDDEPS := flake8
+BUILDDEPS := \
+    flake8 \
+    pylint3 \
 
 build-deps:
 	apt-get -y install $(BUILDDEPS)
