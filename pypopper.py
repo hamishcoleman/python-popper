@@ -372,8 +372,6 @@ def serve(host, port, messages):
                 conn.close()
     except (SystemExit, KeyboardInterrupt):
         LOG.info("pypopper stopped")
-    except Exception as ex:
-        LOG.critical("fatal error", exc_info=ex)
     finally:
         sock.shutdown(socket.SHUT_RDWR)
         sock.close()
@@ -395,7 +393,7 @@ if __name__ == "__main__":
 
     try:
         PORT = int(PORT)
-    except Exception:
+    except ValueError:
         print("Unknown port:", PORT)
         sys.exit(1)
 
