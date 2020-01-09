@@ -69,23 +69,91 @@ class Message():
             msg.close()
 
 
-def handle_user(unused1, unused2):
-    return "+OK user accepted"
+class POPConnection():
+    def __init__(self, connection, messages):
+        self.conn = connection
+        self.messages = messages
 
+    def get_handler(self, command):
+        handlername = 'handle_' + command.lower()
+        handler = getattr(self, handlername, None)
+        if not callable(handler):
+            handler = self.handle_unknown
+        return handler
 
-def handle_pass(unused1, unused2):
-    return "+OK pass accepted"
+    def handle_unknown(self, unused1, unused2):
+        return "-ERR unknown command"
 
+    def handle_user(self, unused1, unused2):
+        return "+OK user accepted"
 
-def handle_stat(unused1, messagelist):
-    size = 0
-    for msg in messagelist:
-        size += msg.size
-    return "+OK %i %i" % (len(messagelist), size)
+    def handle_pass(self, unused1, unused2):
+        return "+OK pass accepted"
 
+    def handle_stat(self, unused1, messagelist):
+        size = 0
+        for msg in messagelist:
+            size += msg.size
+        return "+OK %i %i" % (len(messagelist), size)
 
-def handle_list(data, messagelist):
-    if data:
+    def handle_list(self, data, messagelist):
+        if data:
+            try:
+                msgno = int(data)
+            except ValueError:
+                return "-ERR bad number %s" % data
+            try:
+                msg = messagelist[msgno-1]
+            except IndexError:
+                return "-ERR bad message number %i" % msgno
+
+            return "+OK %i %i" % (msgno, msg.size)
+
+        size = 0
+        s = []
+        msgno = 1
+        for msg in messagelist:
+            s.append("%i %i\r\n" % (msgno, msg.size))
+            size += msg.size
+            msgno += 1
+
+        s.insert(
+            0, "+OK %i messages (%i octets)\r\n" % (len(messagelist), size))
+        s.append('.')
+
+        return ''.join(s)
+
+    def handle_uidl(self, data, messagelist):
+        if data:
+            return "-ERR unhandled %s" % data
+
+        s = []
+        s.append("+OK unique-id listing follows\r\n")
+        msgno = 1
+        for msg in messagelist:
+            s.append("%i %i\r\n" % (msgno, msgno))
+            msgno += 1
+
+        s.append('.')
+
+        return ''.join(s)
+
+    def handle_top(self, data, messagelist):
+        num, lines = data.split()
+        try:
+            num = int(num)
+            lines = int(lines)
+        except ValueError:
+            return "-ERR bad number %s" % data
+        try:
+            msg = messagelist[num-1]
+        except IndexError:
+            return "-ERR bad message number %i" % num
+
+        text = msg.top + "\r\n\r\n" + "\r\n".join(msg.bot[:lines])
+        return "+OK top of message follows\r\n%s\r\n." % text
+
+    def handle_retr(self, data, messagelist):
         try:
             msgno = int(data)
         except ValueError:
@@ -95,92 +163,17 @@ def handle_list(data, messagelist):
         except IndexError:
             return "-ERR bad message number %i" % msgno
 
-        return "+OK %i %i" % (msgno, msg.size)
+        LOG.info("message %i sent", msgno)
+        return "+OK %i octets\r\n%s\r\n." % (msg.size, msg.data)
 
-    size = 0
-    s = []
-    msgno = 1
-    for msg in messagelist:
-        s.append("%i %i\r\n" % (msgno, msg.size))
-        size += msg.size
-        msgno += 1
+    def handle_dele(self, unused1, unused2):
+        return "+OK message 1 deleted"
 
-    s.insert(0, "+OK %i messages (%i octets)\r\n" % (len(messagelist), size))
-    s.append('.')
+    def handle_noop(self, unused1, unused2):
+        return "+OK"
 
-    return ''.join(s)
-
-
-def handle_uidl(data, messagelist):
-    if data:
-        return "-ERR unhandled %s" % data
-
-    s = []
-    s.append("+OK unique-id listing follows\r\n")
-    msgno = 1
-    for msg in messagelist:
-        s.append("%i %i\r\n" % (msgno, msgno))
-        msgno += 1
-
-    s.append('.')
-
-    return ''.join(s)
-
-
-def handle_top(data, messagelist):
-    num, lines = data.split()
-    try:
-        num = int(num)
-        lines = int(lines)
-    except ValueError:
-        return "-ERR bad number %s" % data
-    try:
-        msg = messagelist[num-1]
-    except IndexError:
-        return "-ERR bad message number %i" % num
-
-    text = msg.top + "\r\n\r\n" + "\r\n".join(msg.bot[:lines])
-    return "+OK top of message follows\r\n%s\r\n." % text
-
-
-def handle_retr(data, messagelist):
-    try:
-        msgno = int(data)
-    except ValueError:
-        return "-ERR bad number %s" % data
-    try:
-        msg = messagelist[msgno-1]
-    except IndexError:
-        return "-ERR bad message number %i" % msgno
-
-    LOG.info("message %i sent", msgno)
-    return "+OK %i octets\r\n%s\r\n." % (msg.size, msg.data)
-
-
-def handle_dele(unused1, unused2):
-    return "+OK message 1 deleted"
-
-
-def handle_noop(unused1, unused2):
-    return "+OK"
-
-
-def handle_quit(unused1, unused2):
-    return "+OK pypopper POP3 server signing off"
-
-
-DISPATCH = dict(
-    USER=handle_user,
-    PASS=handle_pass,
-    STAT=handle_stat,
-    LIST=handle_list,
-    UIDL=handle_uidl,
-    TOP=handle_top,
-    RETR=handle_retr,
-    DELE=handle_dele,
-    NOOP=handle_noop,
-    QUIT=handle_quit,
-)
+    def handle_quit(self, unused1, unused2):
+        return "+OK pypopper POP3 server signing off"
 
 
 def serve(host, port, messages):
@@ -201,6 +194,7 @@ def serve(host, port, messages):
             try:
                 conn = ChatterboxConnection(conn)
                 conn.sendall("+OK pypopper file-based pop3 server ready")
+                pop = POPConnection(conn, messages)
                 while True:
                     data = conn.recvall()
                     if not data:
@@ -213,8 +207,8 @@ def serve(host, port, messages):
                     else:
                         param = None
 
-                    if command in DISPATCH:
-                        handler = DISPATCH[command]
+                    handler = pop.get_handler(command)
+                    if handler is not None:
                         result = handler(param, messages)
                         try:
                             conn.sendall(result)
@@ -222,10 +216,8 @@ def serve(host, port, messages):
                             # socket might go away during sendall
                             break
 
-                        if handler is handle_quit:
+                        if handler is POPConnection.handle_quit:
                             break
-                    else:
-                        conn.sendall("-ERR unknown command")
             finally:
                 conn.close()
     except (SystemExit, KeyboardInterrupt):
