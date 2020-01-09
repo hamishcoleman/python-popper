@@ -91,9 +91,11 @@ class POPConnection():
         self.messages = messages
 
     def send_banner(self):
+        """Send welcome banner"""
         self.conn.sendall("+OK pypopper file-based pop3 server ready")
 
     def get_handler(self, command):
+        """Return the handler function for a given command name"""
         handlername = 'handle_' + command.lower()
         handler = getattr(self, handlername, None)
         if not callable(handler):
