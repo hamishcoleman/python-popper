@@ -207,20 +207,19 @@ def serve(host, port, messages):
                     else:
                         param = None
 
-                    try:
-                        cmd = DISPATCH[command]
-                    except KeyError:
-                        conn.sendall("-ERR unknown command")
-                    else:
-                        result = cmd(param, messages)
+                    if command in DISPATCH:
+                        handler = DISPATCH[command]
+                        result = handler(param, messages)
                         try:
                             conn.sendall(result)
                         except Exception:
                             # socket might go away during sendall
                             break
 
-                        if cmd is handle_quit:
+                        if handler is handle_quit:
                             break
+                    else:
+                        conn.sendall("-ERR unknown command")
             finally:
                 conn.close()
     except (SystemExit, KeyboardInterrupt):
