@@ -35,14 +35,19 @@ class ChatterboxConnection():
         data = []
         while True:
             chunk = self.conn.recv(4096)
+            if not chunk:
+                # the connection has gone away
+                if data:
+                    # return what data we do have
+                    break
+                return None
+
             try:
                 chunk = chunk.decode('utf-8')
             except UnicodeDecodeError:
                 LOG.debug("unicode error with %s" % chunk)
                 break
 
-            if not chunk:
-                break
             if end in chunk:
                 data.append(chunk[:chunk.index(end)])
                 # FIXME: we are throwing away the rest of the chunk here
@@ -198,6 +203,8 @@ def serve(host, port, messages):
                 pop = POPConnection(conn, messages)
                 while True:
                     data = conn.recvall()
+                    if data is None:
+                        break
                     if not data:
                         continue
 
