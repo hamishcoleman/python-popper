@@ -237,7 +237,7 @@ class POPConnection():
         return handler
 
     def handle_unknown(self, unused1):
-        self.send_err("unknown command")
+        raise ValueError("unknown command")
         return True
 
     def handle_user(self, unused1):
@@ -316,8 +316,7 @@ class POPConnection():
         try:
             lines = int(lines)
         except ValueError:
-            self.send_err("bad number", lines)
-            return True
+            raise ValueError("bad number", lines)
 
         # Note that with zero lines, we will end up with what looks like an
         # extra blank line in the output.  This appears benign
