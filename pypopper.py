@@ -323,6 +323,10 @@ class POPConnection():
         msg, msgno = self._param2message(param)
 
         data = msg.data()
+        # TODO:
+        # - most messages end with a newline, ensure that is true and then
+        #   remove the extra \r\n here - it causes mismatched line counts
+        #   when displaying preview vs real messages
         self.send_ok("%i octets\r\n%s\r\n." % (len(data), data))
 
         LOG.info("message %i sent", msgno)
