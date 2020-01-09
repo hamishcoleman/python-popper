@@ -90,6 +90,9 @@ class POPConnection():
         self.conn = connection
         self.messages = messages
 
+    def send_banner(self):
+        self.conn.sendall("+OK pypopper file-based pop3 server ready")
+
     def get_handler(self, command):
         handlername = 'handle_' + command.lower()
         handler = getattr(self, handlername, None)
@@ -210,8 +213,8 @@ def serve(host, port, messages):
             LOG.debug('Connected by %s', addr)
             try:
                 conn = ChatterboxConnection(conn)
-                conn.sendall("+OK pypopper file-based pop3 server ready")
                 pop = POPConnection(conn, messages)
+                pop.send_banner()
                 while True:
                     data = conn.recvall()
                     if data is None:
