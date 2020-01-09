@@ -178,14 +178,16 @@ DISPATCH = dict(
 
 
 def serve(host, port, messages):
+    if host:
+        hostname = host
+    else:
+        hostname = "localhost"
+
+    LOG.info("serving POP3 on %s:%s", hostname, port)
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((host, port))
     try:
-        if host:
-            hostname = host
-        else:
-            hostname = "localhost"
-        LOG.info("serving POP3 on %s:%s", hostname, port)
         while True:
             sock.listen(1)
             conn, addr = sock.accept()
