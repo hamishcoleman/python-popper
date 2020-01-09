@@ -34,7 +34,13 @@ class ChatterboxConnection():
     def recvall(self, end=end):
         data = []
         while True:
-            chunk = self.conn.recv(4096).decode('utf-8')
+            chunk = self.conn.recv(4096)
+            try:
+                chunk = chunk.decode('utf-8')
+            except UnicodeDecodeError:
+                LOG.debug("unicode error with %s" % chunk)
+                break
+
             if not chunk:
                 break
             if end in chunk:
