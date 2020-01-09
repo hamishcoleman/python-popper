@@ -152,7 +152,7 @@ class POPConnection():
 
     def send_banner(self):
         """Send welcome banner"""
-        self.conn.sendall("+OK pypopper file-based pop3 server ready")
+        self.send_ok("pypopper file-based pop3 server ready")
 
     def send_msg(self, *args):
         """Send a generic response"""
