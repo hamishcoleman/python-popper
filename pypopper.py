@@ -45,7 +45,7 @@ class ChatterboxConnection():
             try:
                 chunk = chunk.decode('utf-8')
             except UnicodeDecodeError:
-                LOG.debug("unicode error with %s" % chunk)
+                LOG.debug("unicode error with %s", chunk)
                 break
 
             if end in chunk:
