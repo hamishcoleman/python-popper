@@ -1,0 +1,14 @@
+name: CI
+
+on: [push]
+
+jobs:
+    check:
+        name: Check Syntax
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Install Dependencies
+              run: sudo make build-deps
+            - name: Run Checks
+              run: make check
