@@ -110,6 +110,22 @@ class POPConnection():
         """Generate a success response"""
         self.send_msg("+OK", *args)
 
+    def _param2message(self, param):
+        """Extract a message number and convert it into a message object"""
+        try:
+            msgno = int(param)
+        except ValueError:
+            self.send_err("bad number", param)
+            raise ValueError
+
+        try:
+            msg = self.messages[msgno-1]
+        except IndexError:
+            self.send_err("bad message number", msgno)
+            raise ValueError
+
+        return (msg, msgno)
+
     def process_connection(self):
         """
         Process the entire client connection.
@@ -170,14 +186,8 @@ class POPConnection():
     def handle_list(self, data):
         if data:
             try:
-                msgno = int(data)
+                msg, msgno = self._param2message(data)
             except ValueError:
-                self.send_err("bad number", data)
-                return True
-            try:
-                msg = self.messages[msgno-1]
-            except IndexError:
-                self.send_err("bad message number", msgno)
                 return True
 
             self.send_ok(msgno, msg.size)
@@ -206,7 +216,7 @@ class POPConnection():
         s = []
         s.append("unique-id listing follows\r\n")
         msgno = 1
-        for msg in self.messages:
+        for _ in self.messages:
             s.append("%i %i\r\n" % (msgno, msgno))
             msgno += 1
 
@@ -218,16 +228,14 @@ class POPConnection():
     def handle_top(self, data):
         num, lines = data.split()
         try:
-            num = int(num)
-            lines = int(lines)
+            msg, _ = self._param2message(num)
         except ValueError:
-            self.send_err("bad number", data)
             return True
 
         try:
-            msg = self.messages[num-1]
-        except IndexError:
-            self.send_err("bad message number", num)
+            lines = int(lines)
+        except ValueError:
+            self.send_err("bad number", lines)
             return True
 
         self.send_ok("top of message follows\r\n%s\r\n." % msg.top(lines))
@@ -235,14 +243,8 @@ class POPConnection():
 
     def handle_retr(self, data):
         try:
-            msgno = int(data)
+            msg, msgno = self._param2message(data)
         except ValueError:
-            self.send_err("bad number", data)
-            return True
-        try:
-            msg = self.messages[msgno-1]
-        except IndexError:
-            self.send_err("bad message number", msg)
             return True
 
         data = msg.retr()
