@@ -148,6 +148,7 @@ class POPConnection():
     def __init__(self, connection, messages):
         self.conn = ChatterboxConnection(connection)
         self.messages = messages
+        self.connected = True
 
     def send_banner(self):
         """Send welcome banner"""
@@ -200,15 +201,15 @@ class POPConnection():
         """
         self.send_banner()
 
-        connected = True
-        while connected:
+        while self.connected:
             data = self.conn.recvall()
             if data is None:
+                self.connected = False
                 return
             if not data:
                 continue
 
-            connected = self.process_line(data)
+            self.process_line(data)
 
     def process_line(self, line):
         """Process a command line from the client"""
@@ -221,12 +222,9 @@ class POPConnection():
 
         handler = self.get_handler(command)
         try:
-            result = handler(param)
+            handler(param)
         except ValueError as err:
             self.send_err(err)
-            return True
-
-        return result
 
     def get_handler(self, command):
         """Return the handler function for a given command name"""
@@ -238,17 +236,14 @@ class POPConnection():
 
     def handle_unknown(self, unused1):
         raise ValueError("unknown command")
-        return True
 
     def handle_user(self, unused1):
         self._param1used(unused1)
         self.send_ok("user accepted")
-        return True
 
     def handle_pass(self, unused1):
         self._param1used(unused1)
         self.send_ok("pass accepted")
-        return True
 
     def handle_capa(self, unused1):
         self._param1unused(unused1)
@@ -259,7 +254,6 @@ class POPConnection():
             "UIDL",
             ".",
         )))
-        return True
 
     def handle_stat(self, unused1):
         self._param1unused(unused1)
@@ -267,13 +261,12 @@ class POPConnection():
         for msg in self.messages:
             size += msg.size()
         self.send_ok(len(self.messages), size)
-        return True
 
     def handle_list(self, data):
         if data:
             msg, msgno = self._param2message(data)
             self.send_ok(msgno, msg.size())
-            return True
+            return
 
         size = 0
         s = []
@@ -289,13 +282,12 @@ class POPConnection():
         s.append('.')
 
         self.send_ok(''.join(s))
-        return True
 
     def handle_uidl(self, data):
         if data:
             msg, msgno = self._param2message(data)
             self.send_ok(msgno, msg.uid)
-            return True
+            return
 
         s = []
         s.append("unique-id listing follows\r\n")
@@ -307,7 +299,6 @@ class POPConnection():
         s.append('.')
 
         self.send_ok(''.join(s))
-        return True
 
     def handle_top(self, data):
         num, lines = data.split()
@@ -322,7 +313,6 @@ class POPConnection():
         # extra blank line in the output.  This appears benign
 
         self.send_ok("top of message follows\r\n%s\r\n." % msg.top(lines))
-        return True
 
     def handle_retr(self, data):
         msg, msgno = self._param2message(data)
@@ -331,23 +321,20 @@ class POPConnection():
         self.send_ok("%i octets\r\n%s\r\n." % (len(data), data))
 
         LOG.info("message %i sent", msgno)
-        return True
 
     def handle_dele(self, param):
         _, msgno = self._param2message(param)
         self.send_ok("message", msgno, "deleted (fake)")
-        return True
 
     def handle_noop(self, unused1):
         self._param1unused(unused1)
         self.send_ok()
-        return True
 
     def handle_quit(self, unused1):
         self._param1unused(unused1)
         self.send_ok("pypopper POP3 server signing off")
         self.conn.close()
-        return False
+        self.connected = False
 
 
 def serve(host, port, messages):
