@@ -69,10 +69,20 @@ class Message():
         try:
             self.data = data = msg.read()
             self.size = len(data)
-            self.top, bot = data.split("\n\n", 1)
-            self.bot = bot.split("\n")
+            self.head, bot = data.split("\n\n", 1)
+            self.body = bot.split("\n")
         finally:
             msg.close()
+
+    def top(self, lines):
+        """Return the specified number of body lines from our message"""
+        return self.head + "\r\n\r\n" + "\r\n".join(self.body[:lines])
+
+    def retr(self):
+        """Return the entire message"""
+        # could reconstruct this from self.head and self.body
+        # (allowing self.data to be deleted)
+        return self.data
 
 
 class POPConnection():
@@ -156,8 +166,7 @@ class POPConnection():
         except IndexError:
             return "-ERR bad message number %i" % num
 
-        text = msg.top + "\r\n\r\n" + "\r\n".join(msg.bot[:lines])
-        return "+OK top of message follows\r\n%s\r\n." % text
+        return "+OK top of message follows\r\n%s\r\n." % msg.top(lines)
 
     def handle_retr(self, data, messagelist):
         try:
@@ -169,8 +178,9 @@ class POPConnection():
         except IndexError:
             return "-ERR bad message number %i" % msgno
 
+        data = msg.retr()
         LOG.info("message %i sent", msgno)
-        return "+OK %i octets\r\n%s\r\n." % (msg.size, msg.data)
+        return "+OK %i octets\r\n%s\r\n." % (len(data), data)
 
     def handle_dele(self, unused1, unused2):
         return "+OK message 1 deleted"
