@@ -169,6 +169,16 @@ class POPConnection():
         """Generate a success response"""
         self.send_msg("+OK", *args)
 
+    def _param1unused(self, param):
+        """Ensure that we dont have an unknown value"""
+        if param is not None:
+            raise ValueError("bad args", param)
+
+    def _param1used(self, param):
+        """Ensure that the parameter is set to something"""
+        if param is None:
+            raise ValueError("missing args", param)
+
     def _param2message(self, param):
         """Extract a message number and convert it into a message object"""
         try:
@@ -231,14 +241,17 @@ class POPConnection():
         return True
 
     def handle_user(self, unused1):
+        self._param1used(unused1)
         self.send_ok("user accepted")
         return True
 
     def handle_pass(self, unused1):
+        self._param1used(unused1)
         self.send_ok("pass accepted")
         return True
 
     def handle_capa(self, unused1):
+        self._param1unused(unused1)
         self.send_ok("\r\n".join((
             "Capability list follows",
             "TOP",
@@ -249,6 +262,7 @@ class POPConnection():
         return True
 
     def handle_stat(self, unused1):
+        self._param1unused(unused1)
         size = 0
         for msg in self.messages:
             size += msg.size()
@@ -326,10 +340,12 @@ class POPConnection():
         return True
 
     def handle_noop(self, unused1):
+        self._param1unused(unused1)
         self.send_ok()
         return True
 
     def handle_quit(self, unused1):
+        self._param1unused(unused1)
         self.send_ok("pypopper POP3 server signing off")
         self.conn.close()
         return False
